@@ -8,7 +8,7 @@
 
 // defines
 
-#define CTRL_KEY(k) ((k) & 0*1f)
+#define CTRL_KEY(k) ((k) & 0X1f)
 
 // data
 
