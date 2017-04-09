@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -12,28 +13,32 @@
 
 // data
 
-struct termios orig_termios;
+struct editorConfig {
+	struct termios orig_termios;
+};
+
+struct editorConfig E;
 
 // terminal
 
 void die(const char *s){
-	write(STDIN_FILENO ,"\x1b[2J", 4);
-	write(STDIN_FILENO,"\x1b[H", 3);
+	write(STDOUT_FILENO ,"\x1b[2J", 4);
+	write(STDOUT_FILENO,"\x1b[H", 3);
 
 	perror(s);
 	exit(1);
 }
 
 void disableRawMode(){
-	if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+	if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
 	die("tcsetattr");
 }
 
 void enableRawMode(){
-	if(tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
+	if(tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) die("tcgetattr");
 	atexit(disableRawMode);
 
-	struct termios raw = orig_termios;
+	struct termios raw = E.orig_termios;
 	raw.c_iflag &= ~(BRKINT | INPCK | ISTRIP | ICRNL | IXON);
 	raw.c_cflag |= (CS8);
 	raw.c_oflag &= ~(OPOST);
@@ -53,22 +58,35 @@ char editorReadKey(){
 	return c;
 }
 
+int getWindowSize(int *rows,int *cols){
+	struct winsize ws;
+
+	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+		return -1;
+	}
+	else{
+		*cols = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;
+	}
+}
+
 // output
 
 void editorDrawRows(){
 	int t;
 	for(t = 0;t < 24; t++){
-		write(STDIN_FILENO,"~\r\n", 3);
+		write(STDOUT_FILENO,"~\r\n", 3);
 	}
 }
 
 void editorRefreshScreen(){
-	write(STDIN_FILENO ,"\x1b[2J", 4);
-	write(STDIN_FILENO,"\x1b[H", 3);
+	write(STDOUT_FILENO ,"\x1b[2J", 4);
+	write(STDOUT_FILENO,"\x1b[H", 3);
 
 	editorDrawRows();
 
-	write(STDIN_FILENO,"\x1b[H", 3);
+	write(STDOUT_FILENO,"\x1b[H", 3);
 }
 
 // input
@@ -78,8 +96,8 @@ void editorProcessKeypress(){
 
 	switch(c){
 		case CTRL_KEY('q'):
-			write(STDIN_FILENO ,"\x1b[2J", 4);
-			write(STDIN_FILENO,"\x1b[H", 3);
+			write(STDOUT_FILENO ,"\x1b[2J", 4);
+			write(STDOUT_FILENO,"\x1b[H", 3);
 			exit(0);
 			break;
 	}
